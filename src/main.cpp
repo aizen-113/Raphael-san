@@ -1,83 +1,166 @@
 #include "raphael/core/assistant.hpp"
+#include "raphael/core/config.hpp"
+#include "raphael/core/request.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
+#include <string_view>
 
-int main() {
+namespace {
+
+std::string make_request_id()
+{
+    const auto now = std::chrono::system_clock::now();
+
+    const auto millis =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()
+        ).count();
+
+    return std::to_string(millis);
+}
+
+bool is_yes(const std::string& input)
+{
+    return input == "y" ||
+           input == "Y" ||
+           input == "yes" ||
+           input == "Yes" ||
+           input == "YES";
+}
+
+bool is_no(const std::string& input)
+{
+    return input == "n" ||
+           input == "N" ||
+           input == "no" ||
+           input == "No" ||
+           input == "NO";
+}
+
+} // namespace
+
+int main()
+{
     try {
-        auto config = raphael::Config::from_env();
+        const auto config = raphael::Config::from_env();
         raphael::Assistant assistant(config);
 
-        std::uint64_t request_number = 0;
-        const std::string conversation_id = "cli-1";
+        std::optional<std::uint64_t> pending_background_result;
 
         while (true) {
-            for (const auto& job : assistant.new_background_results()) {
+            /*
+             * Check for completed background jobs before waiting
+             * for the next request.
+             */
+            const auto completed_jobs =
+                assistant.new_background_results();
+
+            for (const auto& job : completed_jobs) {
                 if (job.state == raphael::JobState::Completed) {
+                    pending_background_result = job.id;
+
                     std::cout
-                        << "\n[Got a better answer. Show it? yes/no]\n";
-                } else {
+                        << "\n● Got a better answer. Show it? (yes/no)\n";
+                }
+                else if (job.state == raphael::JobState::Failed) {
                     std::cout
-                        << "\n[Background job "
-                        << job.id
-                        << " failed: "
+                        << "\n● Background analysis failed: "
                         << job.error
-                        << "]\n";
+                        << "\n";
                 }
             }
+
             std::cout << "You: ";
 
-            std::string prompt;
+            std::string input;
 
-            if (!std::getline(std::cin, prompt) ||
-                prompt == "/exit")
+            if (!std::getline(std::cin, input)) {
                 break;
+            }
 
-            if (prompt.empty())
+            if (input == "exit" ||
+                input == "quit" ||
+                input == "/exit" ||
+                input == "/quit") {
+                break;
+            }
+
+            /*
+             * Handle the notification locally.
+             *
+             * This prevents "yes" or "no" from accidentally becoming
+             * a brand-new message sent to Lightning.
+             */
+            if (pending_background_result.has_value() &&
+                is_yes(input)) {
+
+                const auto job =
+                    assistant.get_background_result(
+                        *pending_background_result
+                    );
+
+                if (job.has_value() &&
+                    job->state == raphael::JobState::Completed) {
+
+                    std::cout
+                        << "● "
+                        << job->answer
+                        << "\n";
+                }
+
+                pending_background_result.reset();
                 continue;
+            }
 
-            raphael::Request request{
-                .request_id =
-                    "REQ-" +
-                    std::to_string(++request_number),
+            if (pending_background_result.has_value() &&
+                is_no(input)) {
 
-                .timestamp =
-                    std::chrono::system_clock::now(),
+                /*
+                 * The result stays inside BackgroundJobManager.
+                 * It can still be retrieved later through the
+                 * recall_background_answer tool.
+                 */
+                std::cout
+                    << "● Understood, Master.\n";
 
-                .source =
-                    raphael::RequestSource::CLI,
+                pending_background_result.reset();
+                continue;
+            }
 
-                .text = prompt,
+            raphael::Request request;
 
-                .conversation_id =
-                    conversation_id
-            };
+            request.request_id = make_request_id();
+            request.timestamp = std::chrono::system_clock::now();
+            request.source = raphael::RequestSource::CLI;
+            request.text = input;
 
             try {
-                std::cout << "Raphael: ";
+                std::cout << "● ";
 
                 assistant.run(
                     request,
                     [](std::string_view token) {
-                        std::cout
-                            << token
-                            << std::flush;
+                        std::cout << token << std::flush;
                     }
                 );
 
-                std::cout << "\n\n";
-
-            } catch (const std::exception& e) {
-                std::cerr
-                    << "\n[Request error] "
+                std::cout << "\n";
+            }
+            catch (const std::exception& e) {
+                std::cout
+                    << "\n● Failed.\n"
                     << e.what()
-                    << "\n\n";
+                    << "\n";
             }
         }
 
-    } catch (const std::exception& e) {
+        return 0;
+    }
+    catch (const std::exception& e) {
         std::cerr
             << "Fatal error: "
             << e.what()
@@ -85,6 +168,4 @@ int main() {
 
         return 1;
     }
-
-    return 0;
 }

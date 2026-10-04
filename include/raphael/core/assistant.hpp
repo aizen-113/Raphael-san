@@ -8,6 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
@@ -16,17 +17,16 @@ namespace raphael {
 
 class Assistant {
 public:
-    explicit Assistant(const Config& config);
+    explicit Assistant(const Config&);
 
-    void run(
-        const Request& request,
-        NimClient::TokenCallback on_token
-    );
+    void run(const Request&, NimClient::TokenCallback);
 
     std::vector<BackgroundJob> new_background_results();
-    std::optional<BackgroundJob> get_background_result(
-        std::uint64_t id
-    ) const;
+
+    std::optional<BackgroundJob>
+    get_background_result(std::uint64_t id) const;
+
+    bool has_active_background_jobs() const;
 
 private:
     NimClient lightning_;
@@ -36,6 +36,8 @@ private:
     BackgroundJobManager jobs_;
 
     nlohmann::json history_ = nlohmann::json::array();
+
+    std::size_t active_background_jobs_ = 0;
 };
 
 }

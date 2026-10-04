@@ -17,6 +17,7 @@ struct StreamState {
 
     std::string tool_name;
     std::string tool_args;
+    std::string tool_id;
     std::string reasoning;
     std::string content;
     std::string error;
@@ -82,16 +83,25 @@ static size_t stream_callback(
                         !call["function"].is_object())
                         continue;
 
+                    if (state.tool_name.empty() &&
+                        call.contains("id") &&
+                        call["id"].is_string()) {
+
+                        state.tool_id = call["id"].get<std::string>();
+                    }
+
                     const auto& function = call["function"];
 
                     if (function.contains("name") &&
                         function["name"].is_string()) {
+
                         state.tool_name +=
                             function["name"].get<std::string>();
                     }
 
                     if (function.contains("arguments") &&
                         function["arguments"].is_string()) {
+
                         state.tool_args +=
                             function["arguments"].get<std::string>();
                     }
@@ -177,7 +187,7 @@ NimClient::StreamResult NimClient::stream(
     std::string_view reasoning_effort,
     bool no_thinking
 ) {
-    std::cerr << "\n[Model: " << model << "]\n";
+    // std::cerr << "\n[Model: " << model << "]\n";
 
     json messages = json::array();
 
@@ -283,6 +293,7 @@ NimClient::StreamResult NimClient::stream(
         !state.tool_name.empty(),
         std::move(state.tool_name),
         std::move(state.tool_args),
+        std::move(state.tool_id),
         std::move(state.reasoning),
         std::move(state.content)
     };

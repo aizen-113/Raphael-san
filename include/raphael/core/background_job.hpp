@@ -2,15 +2,15 @@
 
 #include <atomic>
 #include <cstdint>
+#include <condition_variable>
 #include <functional>
+#include <mutex>
 #include <optional>
 #include <queue>
 #include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
-#include <condition_variable>
-#include <mutex>
 
 namespace raphael {
 
@@ -21,18 +21,25 @@ enum class JobState {
     Failed
 };
 
+struct BackgroundOutput {
+    std::string answer;
+    std::string reasoning;
+};
+
 struct BackgroundJob {
     std::uint64_t id;
     std::string request;
     std::string answer;
+    std::string reasoning;
     std::string error;
     JobState state = JobState::Queued;
     bool notified = false;
+    bool delivered = false;
 };
 
 class BackgroundJobManager {
 public:
-    using Work = std::function<std::string()>;
+    using Work = std::function<BackgroundOutput()>;
 
     BackgroundJobManager();
     ~BackgroundJobManager();
@@ -41,6 +48,9 @@ public:
 
     std::vector<BackgroundJob> take_new_results();
     std::optional<BackgroundJob> get(std::uint64_t id) const;
+    std::optional<BackgroundJob> search(std::string_view query) const;
+
+    void mark_delivered(std::uint64_t id);
 
 private:
     struct Pending {

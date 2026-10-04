@@ -1,5 +1,8 @@
 #include "raphael/core/background_job.hpp"
 
+#include <algorithm>
+#include <cctype>
+#include <string_view>
 #include <utility>
 
 namespace raphael {
@@ -33,7 +36,10 @@ std::uint64_t BackgroundJobManager::submit(
             std::move(request),
             {},
             {},
-            JobState::Queued
+            {},
+            JobState::Queued,
+            false,
+            false
         };
 
         queue_.push({id, std::move(work)});
@@ -64,19 +70,21 @@ void BackgroundJobManager::worker_loop() {
         }
 
         try {
-            auto answer = pending.work();
+            auto output = pending.work();
 
             std::lock_guard lock(mutex_);
 
             auto& job = jobs_[pending.id];
-            job.answer = std::move(answer);
+
+            job.answer = std::move(output.answer);
+            job.reasoning = std::move(output.reasoning);
             job.state = JobState::Completed;
 
         } catch (const std::exception& e) {
-
             std::lock_guard lock(mutex_);
 
             auto& job = jobs_[pending.id];
+
             job.error = e.what();
             job.state = JobState::Failed;
         }
@@ -112,6 +120,91 @@ BackgroundJobManager::get(std::uint64_t id) const {
         return std::nullopt;
 
     return it->second;
+}
+
+std::optional<BackgroundJob>
+BackgroundJobManager::search(std::string_view query) const {
+    std::lock_guard lock(mutex_);
+
+    BackgroundJob* best = nullptr;
+    int best_score = -1;
+
+    std::string q(query);
+
+    std::transform(
+        q.begin(),
+        q.end(),
+        q.begin(),
+        [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        }
+    );
+
+    for (auto& [id, job] : jobs_) {
+        if (job.state != JobState::Completed)
+            continue;
+
+        if (q.empty()) {
+            if (!best || id > best->id)
+                best = const_cast<BackgroundJob*>(&job);
+            continue;
+        }
+
+        std::string request = job.request;
+
+        std::transform(
+            request.begin(),
+            request.end(),
+            request.begin(),
+            [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            }
+        );
+
+        int score = 0;
+
+        if (request.find(q) != std::string::npos)
+            score += 100;
+
+        std::string word;
+
+        for (char c : q) {
+            if (std::isspace(static_cast<unsigned char>(c))) {
+                if (!word.empty()) {
+                    if (request.find(word) != std::string::npos)
+                        score += 10;
+                    word.clear();
+                }
+            } else {
+                word += c;
+            }
+        }
+
+        if (!word.empty() &&
+            request.find(word) != std::string::npos)
+            score += 10;
+
+        if (score > best_score ||
+            (score == best_score && best && id > best->id)) {
+
+            best_score = score;
+            best = const_cast<BackgroundJob*>(&job);
+        }
+    }
+
+    if (!best)
+        return std::nullopt;
+
+    return *best;
+}
+
+void BackgroundJobManager::mark_delivered(std::uint64_t id) {
+    std::lock_guard lock(mutex_);
+
+    auto it = jobs_.find(id);
+
+    if (it != jobs_.end())
+        it->second.delivered = true;
 }
 
 }

@@ -19,6 +19,7 @@ public:
         std::string tool_args;
         std::string reasoning;
         std::string content;
+        std::string tool_id;
     };
 
     explicit NimClient(std::string api_key);
