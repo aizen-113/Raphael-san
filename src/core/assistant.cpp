@@ -289,6 +289,55 @@ When a tool returns a failure, report the failure accurately.
 Do not reveal internal implementation details unless they are useful to the Master.
 </tool_behavior>
 
+<web_research>
+Use web_search when the Master asks for:
+
+- current information
+- recent events
+- niche information
+- exact information about a specific work, character, ability, person,
+  software library, product, or technology
+- information you are uncertain about
+- information where hallucination would be especially harmful
+
+For media questions, search for the exact requested entity.
+
+Example:
+
+"I AM ATOMIC from The Eminence in Shadow"
+
+means the subject is the technique "I AM ATOMIC".
+
+Do not replace the requested entity with another character or concept.
+
+After searching, base factual claims that require verification on the
+retrieved results.
+
+Prefer primary or authoritative sources when available.
+
+Search results are evidence, not permission to invent information.
+
+When the retrieved information is insufficient or conflicting, state that
+clearly.
+
+When useful, reference retrieved sources using [1], [2], [3], etc.
+
+Do not mention the internal web-search mechanism unless the Master asks.
+
+If a recent web search has already been performed for the current topic,
+reuse its evidence for follow-up questions instead of immediately searching
+again.
+
+Perform a new search only when:
+
+- the Master explicitly asks for a new/fresh search
+- the existing evidence is clearly insufficient
+- the information has become too old for the current question
+
+Do not repeat the same search merely because the Master asks a follow-up
+question about the result.
+</web_research>
+
 <delegation>
 You have access to a stronger background reasoning model through the
 delegate_to_model tool.
@@ -345,6 +394,9 @@ edge cases, and useful conclusions.
 
 Return the best final answer for the request.
 
+Do not claim to have searched the web unless a real web-search tool
+was actually provided and executed.
+
 Do not mention this background role.
 Do not mention model names.
 Do not expose hidden chain-of-thought.
@@ -356,7 +408,9 @@ bool wants_high_reasoning(std::string_view text)
     lower.reserve(text.size());
 
     for (unsigned char c : text) {
-        lower.push_back(static_cast<char>(std::tolower(c)));
+        lower.push_back(
+            static_cast<char>(std::tolower(c))
+        );
     }
 
     constexpr std::string_view strong_words[] = {
@@ -386,13 +440,154 @@ bool wants_high_reasoning(std::string_view text)
     return false;
 }
 
+bool explicitly_requests_new_web_search(
+    std::string_view text)
+{
+    std::string lower;
+    lower.reserve(text.size());
+
+    for (unsigned char c : text) {
+        lower.push_back(
+            static_cast<char>(std::tolower(c))
+        );
+    }
+
+    constexpr std::string_view phrases[] = {
+        "search",
+        "search again",
+        "search the web",
+        "look it up",
+        "look this up",
+        "google it",
+        "search online",
+        "check online",
+        "check the web",
+        "find online",
+        "find it online",
+        "verify this"
+    };
+
+    for (const auto phrase : phrases) {
+        if (lower.find(phrase) != std::string::npos) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::string execute_web_search(
+    WebSearchClient& client,
+    const NimClient::StreamResult& result)
+{
+    std::string query;
+
+    int max_results = 5;
+
+    std::string timelimit;
+
+    try {
+        const auto args =
+            nlohmann::json::parse(
+                result.tool_args
+            );
+
+        if (args.contains("query") &&
+            args["query"].is_string()) {
+
+            query =
+                args["query"].get<std::string>();
+        }
+
+        if (args.contains("max_results") &&
+            args["max_results"].is_number_integer()) {
+
+            max_results =
+                args["max_results"].get<int>();
+        }
+
+        if (args.contains("timelimit") &&
+            args["timelimit"].is_string()) {
+
+            timelimit =
+                args["timelimit"].get<std::string>();
+        }
+    }
+    catch (...) {
+        return
+            "Web search failed.\n"
+            "The tool arguments were invalid.";
+    }
+
+    if (query.empty()) {
+        return
+            "Web search failed.\n"
+            "The search query was empty.";
+    }
+
+    try {
+        const auto results =
+            client.search(
+                query,
+                max_results,
+                timelimit
+            );
+
+        if (results.empty()) {
+            return
+                "No web results were found for:\n" +
+                query;
+        }
+
+        std::string output =
+            "Web search results for: " +
+            query +
+            "\n\n";
+
+        for (std::size_t i = 0;
+             i < results.size();
+             ++i) {
+
+            output +=
+                "[" +
+                std::to_string(i + 1) +
+                "] " +
+                results[i].title +
+                "\n";
+
+            output +=
+                "URL: " +
+                results[i].url +
+                "\n";
+
+            if (!results[i].snippet.empty()) {
+                output +=
+                    "Snippet: " +
+                    results[i].snippet +
+                    "\n";
+            }
+
+            output += "\n";
+        }
+
+        return output;
+    }
+    catch (const std::exception& e) {
+        return
+            "Web search failed.\n"
+            "Reason: " +
+            std::string(e.what());
+    }
+}
+
 std::string tool_argument(
     const std::string& raw,
     std::string_view key,
     std::string fallback = {})
 {
     try {
-        const auto args = nlohmann::json::parse(raw);
+        const auto args =
+            nlohmann::json::parse(raw);
 
         if (!args.is_object()) {
             return fallback;
@@ -442,11 +637,76 @@ nlohmann::json make_tool_call_message(
     return message;
 }
 
+nlohmann::json make_web_search_tool()
+{
+    return {
+        {"type", "function"},
+        {
+            "function",
+            {
+                {"name", "web_search"},
+                {
+                    "description",
+                    "Search the live web for current, niche, specific, "
+                    "or uncertain information. Use this when factual "
+                    "verification would materially improve accuracy."
+                },
+                {
+                    "parameters",
+                    {
+                        {"type", "object"},
+                        {
+                            "properties",
+                            {
+                                {
+                                    "query",
+                                    {
+                                        {"type", "string"},
+                                        {
+                                            "description",
+                                            "The exact web search query."
+                                        }
+                                    }
+                                },
+                                {
+                                    "max_results",
+                                    {
+                                        {"type", "integer"},
+                                        {"minimum", 1},
+                                        {"maximum", 8}
+                                    }
+                                },
+                                {
+                                    "timelimit",
+                                    {
+                                        {"type", "string"},
+                                        {
+                                            "enum",
+                                            {"d", "w", "m", "y"}
+                                        },
+                                        {
+                                            "description",
+                                            "Optional time filter: "
+                                            "d=day, w=week, m=month, y=year."
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {"required", {"query"}}
+                    }
+                }
+            }
+        }
+    };
+}
+
 } // namespace
 
 Assistant::Assistant(const Config& config)
     : lightning_(config.nvidia_api_key),
-      kimi_(config.nvidia_api_key)
+      kimi_(config.nvidia_api_key),
+      web_search_()
 {
 }
 
@@ -454,76 +714,130 @@ void Assistant::run(
     const Request& request,
     NimClient::TokenCallback on_token)
 {
-    nlohmann::json request_history = history_;
+    nlohmann::json request_history =
+        history_;
 
     request_history.push_back({
         {"role", "user"},
         {"content", request.text}
     });
 
-    const nlohmann::json tools = nlohmann::json::array({
-        {
-            {"type", "function"},
+    const bool wants_fresh_web_search =
+        explicitly_requests_new_web_search(
+            request.text
+        );
+
+    /*
+     * Base Raphael prompt.
+     *
+     * If a recent web result exists, add its evidence directly to
+     * the system prompt so follow-up questions can reuse it.
+     */
+    std::string system_prompt =
+        std::string(RAPHAEL_PROMPT);
+
+    if (recent_web_result_id_.has_value() &&
+        recent_web_turns_ < 3 &&
+        !wants_fresh_web_search) {
+
+        const auto recent_job =
+            jobs_.get(
+                *recent_web_result_id_
+            );
+
+        if (recent_job.has_value() &&
+            recent_job->state ==
+                JobState::Completed) {
+
+            system_prompt +=
+                "\n\n<recent_web_research>\n"
+                "A recent web search has already been completed "
+                "for the Master.\n\n"
+                "Use the evidence below when it is relevant to "
+                "the Master's current question.\n"
+                "Do not perform another web search merely because "
+                "the Master asks a follow-up question.\n"
+                "Only perform a new search if the Master explicitly "
+                "requests one or the existing evidence is clearly "
+                "insufficient.\n\n"
+                "Recent search evidence:\n" +
+                recent_job->answer +
+                "\n</recent_web_research>";
+        }
+    }
+
+    /*
+     * Lightning always has the normal tools.
+     *
+     * web_search is deliberately NOT exposed when a recent search
+     * can already answer the current conversation.
+     */
+    nlohmann::json tools =
+        nlohmann::json::array({
             {
-                "function",
+                {"type", "function"},
                 {
-                    {"name", "delegate_to_model"},
+                    "function",
                     {
-                        "description",
-                        "Delegate a difficult request to the stronger "
-                        "background reasoning model. Use this only when "
-                        "deeper reasoning is materially useful."
-                    },
-                    {
-                        "parameters",
+                        {"name", "delegate_to_model"},
                         {
-                            {"type", "object"},
+                            "description",
+                            "Delegate a difficult request to the stronger "
+                            "background reasoning model. Use this only when "
+                            "deeper reasoning is materially useful."
+                        },
+                        {
+                            "parameters",
                             {
-                                "properties",
+                                {"type", "object"},
                                 {
+                                    "properties",
                                     {
-                                        "model",
                                         {
-                                            {"type", "string"},
-                                            {"enum", {"kimi"}}
+                                            "model",
+                                            {
+                                                {"type", "string"},
+                                                {"enum", {"kimi"}}
+                                            }
                                         }
                                     }
-                                }
-                            },
-                            {"required", {"model"}}
+                                },
+                                {"required", {"model"}}
+                            }
                         }
                     }
                 }
-            }
-        },
-        {
-            {"type", "function"},
+            },
             {
-                "function",
+                {"type", "function"},
                 {
-                    {"name", "recall_background_answer"},
+                    "function",
                     {
-                        "description",
-                        "Retrieve a previously completed background analysis. "
-                        "Use this when the Master asks about a previous "
-                        "delegated task or asks to show/retrieve an earlier "
-                        "background answer."
-                    },
-                    {
-                        "parameters",
+                        {"name", "recall_background_answer"},
                         {
-                            {"type", "object"},
+                            "description",
+                            "Retrieve a previously completed background "
+                            "analysis. Use this when the Master asks about "
+                            "a previous delegated task or asks to retrieve "
+                            "an earlier background answer."
+                        },
+                        {
+                            "parameters",
                             {
-                                "properties",
+                                {"type", "object"},
                                 {
+                                    "properties",
                                     {
-                                        "query",
                                         {
-                                            {"type", "string"},
+                                            "query",
                                             {
-                                                "description",
-                                                "Optional description or keywords "
-                                                "identifying the earlier background task."
+                                                {"type", "string"},
+                                                {
+                                                    "description",
+                                                    "Optional description or "
+                                                    "keywords identifying the "
+                                                    "earlier background task."
+                                                }
                                             }
                                         }
                                     }
@@ -533,23 +847,34 @@ void Assistant::run(
                     }
                 }
             }
-        }
-    });
+        });
 
-    // IMPORTANT:
-    // This must be "auto", not just "result".
-    const auto result = lightning_.stream(
-        models_.id("lightning"),
-        RAPHAEL_PROMPT,
-        request_history,
-        on_token,
-        tools,
-        {},
-        true
-    );
+    /*
+     * Give Lightning web_search only when a fresh search is allowed.
+     */
+    if (!recent_web_result_id_.has_value() ||
+        recent_web_turns_ >= 3 ||
+        wants_fresh_web_search) {
+
+        tools.push_back(
+            make_web_search_tool()
+        );
+    }
+
+    const auto result =
+        lightning_.stream(
+            models_.id("lightning"),
+            system_prompt,
+            request_history,
+            on_token,
+            tools,
+            {},
+            true
+        );
 
     if (!result.tool_called) {
-        history_ = request_history;
+        history_ =
+            request_history;
 
         if (!result.content.empty()) {
             history_.push_back({
@@ -561,21 +886,33 @@ void Assistant::run(
         return;
     }
 
-    if (result.tool_name == "delegate_to_model") {
-        const std::string model = tool_argument(
-            result.tool_args,
-            "model",
-            "kimi"
-        );
+    /*
+     * ------------------------------------------------------------
+     * KIMI DELEGATION
+     * ------------------------------------------------------------
+     */
+    if (result.tool_name ==
+        "delegate_to_model") {
 
-        if (!models_.contains(model) || model != "kimi") {
+        const std::string model =
+            tool_argument(
+                result.tool_args,
+                "model",
+                "kimi"
+            );
+
+        if (!models_.contains(model) ||
+            model != "kimi") {
+
             const std::string error_message =
                 "Failed.\n"
                 "The requested background reasoning target is unavailable.";
 
             on_token(error_message);
 
-            history_ = request_history;
+            history_ =
+                request_history;
+
             history_.push_back({
                 {"role", "assistant"},
                 {"content", error_message}
@@ -584,68 +921,110 @@ void Assistant::run(
             return;
         }
 
-        on_token("Searching for a better answer...");
+        on_token(
+            "Searching for a better answer..."
+        );
 
-        history_ = request_history;
+        history_ =
+            request_history;
+
         history_.push_back({
             {"role", "assistant"},
             {"content", "Searching for a better answer..."}
         });
 
-        const std::string background_request = request.text;
-        const nlohmann::json background_history = request_history;
+        const std::string background_request =
+            request.text;
+
+        const nlohmann::json background_history =
+            request_history;
+
         const std::string reasoning_effort =
-            wants_high_reasoning(request.text) ? "high" : "low";
+            wants_high_reasoning(
+                request.text
+            )
+                ? "high"
+                : "low";
 
-        const auto jobs_.submit(
-            background_request,
-            [this, background_history, reasoning_effort]() {
-                std::string answer;
+        const auto job_id =
+            jobs_.submit(
+                background_request,
+                [this,
+                 background_history,
+                 reasoning_effort]() {
 
-                const auto kimi_result = kimi_.stream(
-                    models_.id("kimi"),
-                    KIMI_PROMPT,
-                    background_history,
-                    [&](std::string_view token) {
-                        answer.append(token);
-                    },
-                    {},
-                    reasoning_effort,
-                    false
-                );
+                    std::string answer;
 
-                BackgroundOutput output;
-                output.answer = std::move(answer);
-                output.reasoning = kimi_result.reasoning;
+                    const auto kimi_result =
+                        kimi_.stream(
+                            models_.id("kimi"),
+                            KIMI_PROMPT,
+                            background_history,
+                            [&](std::string_view token) {
+                                answer.append(token);
+                            },
+                            {},
+                            reasoning_effort,
+                            false
+                        );
 
-                return output;
-            }
+                    BackgroundOutput output;
+
+                    output.answer =
+                        std::move(answer);
+
+                    output.reasoning =
+                        kimi_result.reasoning;
+
+                    return output;
+                }
+            );
+
+        jobs_.set_type(
+            job_id,
+            BackgroundJobType::Kimi
         );
+
+        ++active_background_jobs_;
 
         return;
     }
 
-    (void)job_id;
-    ++active_background_jobs_;
+    /*
+     * ------------------------------------------------------------
+     * RECALL BACKGROUND ANSWER
+     * ------------------------------------------------------------
+     */
+    if (result.tool_name ==
+        "recall_background_answer") {
 
-    if (result.tool_name == "recall_background_answer") {
         const std::string query =
-            tool_argument(result.tool_args, "query");
+            tool_argument(
+                result.tool_args,
+                "query"
+            );
 
-        const auto job = jobs_.search(query);
+        const auto job =
+            jobs_.search(query);
 
         std::string tool_result;
 
         if (!job.has_value()) {
+
             tool_result =
-                "No completed background answer matching the request "
-                "was found.";
+                "No completed background answer matching "
+                "the request was found.";
         }
-        else if (job->state == JobState::Failed) {
+        else if (
+            job->state ==
+            JobState::Failed) {
+
             tool_result =
-                "The matching background task failed: " + job->error;
+                "The matching background task failed: " +
+                job->error;
         }
         else {
+
             tool_result =
                 "Background job ID: " +
                 std::to_string(job->id) +
@@ -657,7 +1036,8 @@ void Assistant::run(
                 job->answer;
         }
 
-        nlohmann::json followup_history = request_history;
+        nlohmann::json followup_history =
+            request_history;
 
         followup_history.push_back(
             make_tool_call_message(result)
@@ -674,7 +1054,7 @@ void Assistant::run(
 
         lightning_.stream(
             models_.id("lightning"),
-            RAPHAEL_PROMPT,
+            system_prompt,
             followup_history,
             [&](std::string_view token) {
                 final_answer.append(token);
@@ -685,7 +1065,8 @@ void Assistant::run(
             true
         );
 
-        history_ = request_history;
+        history_ =
+            request_history;
 
         if (!final_answer.empty()) {
             history_.push_back({
@@ -697,36 +1078,259 @@ void Assistant::run(
         return;
     }
 
+    /*
+     * ------------------------------------------------------------
+     * WEB SEARCH
+     * ------------------------------------------------------------
+     *
+     * IMPORTANT:
+     * One web_search tool call creates ONE background job and
+     * immediately returns.
+     *
+     * There is intentionally NO second Lightning call here.
+     */
+    if (result.tool_name ==
+        "web_search") {
+
+        const std::string query =
+            tool_argument(
+                result.tool_args,
+                "query"
+            );
+
+        if (query.empty()) {
+
+            const std::string error =
+                "Failed.\n"
+                "The web search query was empty.";
+
+            on_token(error);
+
+            history_ =
+                request_history;
+
+            history_.push_back({
+                {"role", "assistant"},
+                {"content", error}
+            });
+
+            return;
+        }
+
+        int max_results = 5;
+
+        std::string timelimit;
+
+        try {
+            const auto args =
+                nlohmann::json::parse(
+                    result.tool_args
+                );
+
+            if (args.contains("max_results") &&
+                args["max_results"].is_number_integer()) {
+
+                max_results =
+                    args["max_results"].get<int>();
+            }
+
+            if (args.contains("timelimit") &&
+                args["timelimit"].is_string()) {
+
+                timelimit =
+                    args["timelimit"].get<std::string>();
+            }
+        }
+        catch (...) {
+            /*
+             * Keep safe defaults.
+             */
+        }
+
+        on_token(
+            "Searching the web..."
+        );
+
+        history_ =
+            request_history;
+
+        history_.push_back({
+            {"role", "assistant"},
+            {"content", "Searching the web..."}
+        });
+
+        /*
+         * The old search result is no longer the current one.
+         */
+        recent_web_result_id_.reset();
+        recent_web_turns_ = 0;
+
+        const std::string background_request =
+            request.text;
+
+        const std::string search_query =
+            query;
+
+        const std::string search_timelimit =
+            timelimit;
+
+        const int search_max_results =
+            max_results;
+
+        const auto job_id =
+            jobs_.submit(
+                background_request,
+                [this,
+                 search_query,
+                 search_timelimit,
+                 search_max_results]() {
+
+                    BackgroundOutput output;
+
+                    const auto results =
+                        web_search_.search(
+                            search_query,
+                            search_max_results,
+                            search_timelimit
+                        );
+
+                    if (results.empty()) {
+
+                        output.answer =
+                            "No web results were found for:\n" +
+                            search_query;
+                    }
+                    else {
+
+                        std::string text =
+                            "Web search results for: " +
+                            search_query +
+                            "\n\n";
+
+                        for (std::size_t i = 0;
+                             i < results.size();
+                             ++i) {
+
+                            text +=
+                                "[" +
+                                std::to_string(i + 1) +
+                                "] " +
+                                results[i].title +
+                                "\n";
+
+                            text +=
+                                "URL: " +
+                                results[i].url +
+                                "\n";
+
+                            if (!results[i].snippet.empty()) {
+
+                                text +=
+                                    "Snippet: " +
+                                    results[i].snippet +
+                                    "\n";
+                            }
+
+                            text += "\n";
+                        }
+
+                        output.answer =
+                            std::move(text);
+                    }
+
+                    return output;
+                }
+            );
+
+        jobs_.set_type(
+            job_id,
+            BackgroundJobType::WebSearch
+        );
+
+        ++active_background_jobs_;
+
+        return;
+    }
+
     const std::string error_message =
         "Failed.\n"
         "Unknown tool request.";
 
-    on_token(error_message);
+    on_token(
+        error_message
+    );
 
-    history_ = request_history;
+    history_ =
+        request_history;
+
     history_.push_back({
         {"role", "assistant"},
         {"content", error_message}
     });
 }
 
-std::vector<BackgroundJob> Assistant::new_background_results()
+std::vector<BackgroundJob>
+Assistant::new_background_results()
 {
-    auto results = jobs_.take_new_results();
+    auto results =
+        jobs_.take_new_results();
 
     for (const auto& job : results) {
-        if ((job.state == JobState::Completed ||
-             job.state == JobState::Failed) &&
+
+        if ((job.state ==
+                 JobState::Completed ||
+             job.state ==
+                 JobState::Failed) &&
             active_background_jobs_ > 0) {
+
             --active_background_jobs_;
+        }
+
+        /*
+         * Make the latest completed web search available for
+         * conversational follow-ups immediately.
+         */
+        if (job.type ==
+                BackgroundJobType::WebSearch &&
+            job.state ==
+                JobState::Completed) {
+
+            recent_web_result_id_ =
+                job.id;
+
+            recent_web_turns_ = 0;
         }
     }
 
     return results;
 }
 
+void Assistant::note_assistant_turn()
+{
+    /*
+     * DDGS lifecycle.
+     */
+    web_search_.note_assistant_turn();
+
+    /*
+     * Recent web evidence remains available for a few normal
+     * conversational turns before expiring.
+     */
+    if (recent_web_result_id_.has_value()) {
+
+        ++recent_web_turns_;
+
+        if (recent_web_turns_ >= 3) {
+
+            recent_web_result_id_.reset();
+            recent_web_turns_ = 0;
+        }
+    }
+}
+
 std::optional<BackgroundJob>
-Assistant::get_background_result(std::uint64_t id) const
+Assistant::get_background_result(
+    std::uint64_t id) const
 {
     return jobs_.get(id);
 }
@@ -736,4 +1340,89 @@ bool Assistant::has_active_background_jobs() const
     return active_background_jobs_ > 0;
 }
 
+void Assistant::elaborate_web_result(
+    std::uint64_t id,
+    NimClient::TokenCallback on_token)
+{
+    const auto job =
+        jobs_.get(id);
+
+    if (!job.has_value()) {
+
+        on_token(
+            "The requested search result is no longer available."
+        );
+
+        return;
+    }
+
+    if (job->state !=
+        JobState::Completed) {
+
+        on_token(
+            "The search result is not ready."
+        );
+
+        return;
+    }
+
+    /*
+     * Tell Lightning exactly what the stored search result represents.
+     *
+     * There are intentionally NO tools in this request.
+     * Therefore it cannot call web_search again while elaborating.
+     */
+    std::string prompt =
+        std::string(RAPHAEL_PROMPT);
+
+    prompt +=
+        "\n\n<completed_web_search>\n"
+        "A live web search has already been completed for the "
+        "Master's original request.\n\n"
+        "Use the retrieved evidence below to answer that request.\n"
+        "Do not dump the search results.\n"
+        "Do not list URLs unless a URL is specifically useful.\n"
+        "Do not describe the internal search process.\n"
+        "Do not perform another search.\n"
+        "Do not invent information that is absent from the evidence.\n"
+        "Give the useful answer directly and concisely.\n\n"
+        "Retrieved evidence:\n" +
+        job->answer +
+        "\n</completed_web_search>";
+
+    std::string final_answer;
+
+    lightning_.stream(
+        models_.id("lightning"),
+        prompt,
+        history_,
+        [&](std::string_view token) {
+            final_answer.append(token);
+            on_token(token);
+        },
+        {},
+        {},
+        true
+    );
+
+    if (!final_answer.empty()) {
+
+        history_.push_back({
+            {"role", "assistant"},
+            {"content", final_answer}
+        });
+    }
+
+    jobs_.mark_delivered(id);
+
+    /*
+     * Keep this result available for follow-up questions.
+     */
+    recent_web_result_id_ =
+        id;
+
+    recent_web_turns_ =
+        0;
 }
+
+} // namespace raphael

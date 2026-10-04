@@ -31,16 +31,19 @@ std::uint64_t BackgroundJobManager::submit(
     {
         std::lock_guard lock(mutex_);
 
-        jobs_[id] = {
-            id,
-            std::move(request),
-            {},
-            {},
-            {},
-            JobState::Queued,
-            false,
-            false
-        };
+        BackgroundJob job;
+
+        job.id = id;
+        job.request = std::move(request);
+        job.answer = {};
+        job.reasoning = {};
+        job.error = {};
+        job.type = BackgroundJobType::Kimi;
+        job.state = JobState::Queued;
+        job.notified = false;
+        job.delivered = false;
+
+        jobs_[id] = std::move(job);
 
         queue_.push({id, std::move(work)});
     }
@@ -196,6 +199,22 @@ BackgroundJobManager::search(std::string_view query) const {
         return std::nullopt;
 
     return *best;
+}
+
+void BackgroundJobManager::set_type(
+    std::uint64_t id,
+    BackgroundJobType type)
+{
+    std::lock_guard lock(mutex_);
+
+    const auto it =
+        jobs_.find(id);
+
+    if (it == jobs_.end()) {
+        return;
+    }
+
+    it->second.type = type;
 }
 
 void BackgroundJobManager::mark_delivered(std::uint64_t id) {

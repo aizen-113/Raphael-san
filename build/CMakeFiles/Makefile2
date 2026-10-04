@@ -85,12 +85,12 @@ clean: CMakeFiles/raphael.dir/clean
 CMakeFiles/raphael.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/raphael.dir/build.make CMakeFiles/raphael.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/raphael.dir/build.make CMakeFiles/raphael.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/aizen/hehe/Raphael-san/build/CMakeFiles --progress-num=1,2,3,4,5,6,7 "Built target raphael"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/aizen/hehe/Raphael-san/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8 "Built target raphael"
 .PHONY : CMakeFiles/raphael.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/raphael.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/aizen/hehe/Raphael-san/build/CMakeFiles 7
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/aizen/hehe/Raphael-san/build/CMakeFiles 8
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/raphael.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/aizen/hehe/Raphael-san/build/CMakeFiles 0
 .PHONY : CMakeFiles/raphael.dir/rule
@@ -102,7 +102,7 @@ raphael: CMakeFiles/raphael.dir/rule
 # codegen rule for target.
 CMakeFiles/raphael.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/raphael.dir/build.make CMakeFiles/raphael.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/aizen/hehe/Raphael-san/build/CMakeFiles --progress-num=1,2,3,4,5,6,7 "Finished codegen for target raphael"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/aizen/hehe/Raphael-san/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8 "Finished codegen for target raphael"
 .PHONY : CMakeFiles/raphael.dir/codegen
 
 # clean rule for target.

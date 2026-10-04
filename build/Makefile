@@ -201,6 +201,30 @@ src/core/config.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/raphael.dir/build.make CMakeFiles/raphael.dir/src/core/config.cpp.s
 .PHONY : src/core/config.cpp.s
 
+src/core/web_search.o: src/core/web_search.cpp.o
+.PHONY : src/core/web_search.o
+
+# target to build an object file
+src/core/web_search.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raphael.dir/build.make CMakeFiles/raphael.dir/src/core/web_search.cpp.o
+.PHONY : src/core/web_search.cpp.o
+
+src/core/web_search.i: src/core/web_search.cpp.i
+.PHONY : src/core/web_search.i
+
+# target to preprocess a source file
+src/core/web_search.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raphael.dir/build.make CMakeFiles/raphael.dir/src/core/web_search.cpp.i
+.PHONY : src/core/web_search.cpp.i
+
+src/core/web_search.s: src/core/web_search.cpp.s
+.PHONY : src/core/web_search.s
+
+# target to generate assembly for a file
+src/core/web_search.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raphael.dir/build.make CMakeFiles/raphael.dir/src/core/web_search.cpp.s
+.PHONY : src/core/web_search.cpp.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -291,6 +315,9 @@ help:
 	@echo "... src/core/config.o"
 	@echo "... src/core/config.i"
 	@echo "... src/core/config.s"
+	@echo "... src/core/web_search.o"
+	@echo "... src/core/web_search.i"
+	@echo "... src/core/web_search.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"

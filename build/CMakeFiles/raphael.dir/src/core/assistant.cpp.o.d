@@ -346,4 +346,5 @@ CMakeFiles/raphael.dir/src/core/assistant.cpp.o: \
  /usr/include/nlohmann/ordered_map.hpp /usr/include/c++/16.1.1/any \
  /usr/include/nlohmann/detail/macro_unscope.hpp \
  /usr/include/nlohmann/thirdparty/hedley/hedley_undef.hpp \
- /home/aizen/hehe/Raphael-san/include/raphael/models/registry.hpp
+ /home/aizen/hehe/Raphael-san/include/raphael/models/registry.hpp \
+ /home/aizen/hehe/Raphael-san/include/raphael/core/web_search.hpp

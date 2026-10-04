@@ -11,6 +11,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/aizen/hehe/Raphael-san/src/core/assistant.cpp" "CMakeFiles/raphael.dir/src/core/assistant.cpp.o" "gcc" "CMakeFiles/raphael.dir/src/core/assistant.cpp.o.d"
   "/home/aizen/hehe/Raphael-san/src/core/background_job.cpp" "CMakeFiles/raphael.dir/src/core/background_job.cpp.o" "gcc" "CMakeFiles/raphael.dir/src/core/background_job.cpp.o.d"
   "/home/aizen/hehe/Raphael-san/src/core/config.cpp" "CMakeFiles/raphael.dir/src/core/config.cpp.o" "gcc" "CMakeFiles/raphael.dir/src/core/config.cpp.o.d"
+  "/home/aizen/hehe/Raphael-san/src/core/web_search.cpp" "CMakeFiles/raphael.dir/src/core/web_search.cpp.o" "gcc" "CMakeFiles/raphael.dir/src/core/web_search.cpp.o.d"
   "/home/aizen/hehe/Raphael-san/src/main.cpp" "CMakeFiles/raphael.dir/src/main.cpp.o" "gcc" "CMakeFiles/raphael.dir/src/main.cpp.o.d"
   "/home/aizen/hehe/Raphael-san/src/models/nim_client.cpp" "CMakeFiles/raphael.dir/src/models/nim_client.cpp.o" "gcc" "CMakeFiles/raphael.dir/src/models/nim_client.cpp.o.d"
   "/home/aizen/hehe/Raphael-san/src/models/registry.cpp" "CMakeFiles/raphael.dir/src/models/registry.cpp.o" "gcc" "CMakeFiles/raphael.dir/src/models/registry.cpp.o.d"

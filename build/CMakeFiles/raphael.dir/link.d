@@ -8,6 +8,7 @@ raphael: \
   CMakeFiles/raphael.dir/src/models/nim_client.cpp.o \
   CMakeFiles/raphael.dir/src/models/registry.cpp.o \
   CMakeFiles/raphael.dir/src/core/background_job.cpp.o \
+  CMakeFiles/raphael.dir/src/core/web_search.cpp.o \
   /usr/lib/libcurl.so \
   /usr/lib/libcurl.so \
   /usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/../../../../lib/libstdc++.so \
@@ -81,6 +82,8 @@ CMakeFiles/raphael.dir/src/models/nim_client.cpp.o:
 CMakeFiles/raphael.dir/src/models/registry.cpp.o:
 
 CMakeFiles/raphael.dir/src/core/background_job.cpp.o:
+
+CMakeFiles/raphael.dir/src/core/web_search.cpp.o:
 
 /usr/lib/libcurl.so:
 

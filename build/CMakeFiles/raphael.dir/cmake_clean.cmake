@@ -6,6 +6,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/raphael.dir/src/core/background_job.cpp.o.d"
   "CMakeFiles/raphael.dir/src/core/config.cpp.o"
   "CMakeFiles/raphael.dir/src/core/config.cpp.o.d"
+  "CMakeFiles/raphael.dir/src/core/web_search.cpp.o"
+  "CMakeFiles/raphael.dir/src/core/web_search.cpp.o.d"
   "CMakeFiles/raphael.dir/src/main.cpp.o"
   "CMakeFiles/raphael.dir/src/main.cpp.o.d"
   "CMakeFiles/raphael.dir/src/models/nim_client.cpp.o"

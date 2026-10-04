@@ -16,6 +16,7 @@ add_executable(raphael
     src/models/nim_client.cpp
     src/models/registry.cpp
     src/core/background_job.cpp
+    src/core/web_search.cpp
 )
 
 target_include_directories(raphael PRIVATE
